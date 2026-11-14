@@ -40,7 +40,7 @@ function App(){
     const {data:{subscription}}=supabaseClient.auth.onAuthStateChange((_event,nextSession)=>setSession(nextSession));
     return()=>subscription.unsubscribe();
   },[]);
-  async function signIn(){setAuthError('');const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});if(error)setAuthError(error.message)}
+  async function signIn(){setAuthError('');const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:new URL(import.meta.env.BASE_URL,window.location.origin).href}});if(error)setAuthError(error.message)}
   async function signOut(){await supabaseClient.auth.signOut();setSession(null)}
   if(!supabaseClient)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">X</div><h1>Configuração necessária</h1><p>Defina <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> para habilitar o login Google.</p></section></div>;
   if(!authReady)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">X</div><p>Verificando sua sessão…</p></section></div>;
