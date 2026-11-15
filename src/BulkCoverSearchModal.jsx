@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { Search, X, Save, LoaderCircle, Check } from 'lucide-react';
 
 const BATCH_SIZE = 100;
+const CLASSIC_XMEN_SEARCH_VERSION = 2;
+const isClassicXmen1963 = (issue) => /^Uncanny X-Men\s*\(1963\)\s*#?\d+(?:\.\d+)?$/i.test(issue?.title || '');
 
 export default function BulkCoverSearchModal({ onClose, onSaved }) {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('comicvineApiKey') || '');
@@ -23,14 +25,25 @@ export default function BulkCoverSearchModal({ onClose, onSaved }) {
         const saved = JSON.parse(localStorage.getItem('comicvineBulkProgress') || 'null');
         if (saved?.issues?.length) {
           const currentById = new Map(current.map((issue) => [issue.id, issue]));
-          const queue = saved.issues.map((issue) => currentById.get(issue.id)).filter(Boolean);
+          const savedEntries = saved.entries || [];
+          const entriesById = new Map(savedEntries.map((entry) => [entry.issue.id, entry]));
+          const completedIds = new Set(saved.issues.slice(0, saved.cursor || 0)
+            .map((issue) => currentById.get(issue.id))
+            .filter((issue) => issue && (!isClassicXmen1963(issue)
+              || entriesById.get(issue.id)?.searchVersion === CLASSIC_XMEN_SEARCH_VERSION))
+            .map((issue) => issue.id));
+          const savedIssues = saved.issues.map((issue) => currentById.get(issue.id)).filter(Boolean);
+          const queue = [
+            ...savedIssues.filter((issue) => completedIds.has(issue.id)),
+            ...savedIssues.filter((issue) => !completedIds.has(issue.id)),
+          ];
           const queuedIds = new Set(queue.map((issue) => issue.id));
           queue.push(...current.filter((issue) => !queuedIds.has(issue.id)));
-          const completedBeforeCursor = saved.issues.slice(0, saved.cursor || 0)
-            .filter((issue) => currentById.has(issue.id)).length;
           setIssues(queue);
-          setCursor(completedBeforeCursor);
-          setEntries((saved.entries || []).filter((entry) => currentById.has(entry.issue.id)));
+          setCursor(completedIds.size);
+          setEntries(savedEntries.filter((entry) => currentById.has(entry.issue.id)
+            && (!isClassicXmen1963(currentById.get(entry.issue.id))
+              || entry.searchVersion === CLASSIC_XMEN_SEARCH_VERSION)));
         } else {
           setIssues(current);
         }
@@ -70,9 +83,9 @@ export default function BulkCoverSearchModal({ onClose, onSaved }) {
           break;
         }
         if (!response.ok) throw new Error(payload.error || 'Busca indisponível.');
-        found.push({ issue, results: (payload.results || []).slice(0, 3), selected: '' });
+        found.push({ issue, results: (payload.results || []).slice(0, 3), selected: '', searchVersion: CLASSIC_XMEN_SEARCH_VERSION });
       } catch (cause) {
-        found.push({ issue, results: [], selected: '', error: cause.message });
+        found.push({ issue, results: [], selected: '', error: cause.message, searchVersion: CLASSIC_XMEN_SEARCH_VERSION });
       }
       setEntries((current) => [...current, ...found.slice(-1)]);
       setCursor((current) => current + 1);
