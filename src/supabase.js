@@ -110,20 +110,20 @@ export async function apiFetch(input, options = {}) {
       if (error) throw error; if (linkError) throw linkError;
       const counts = new Map(); for (const link of links || []) counts.set(link.issue_id, (counts.get(link.issue_id) || 0) + 1);
       const q = url.searchParams.get('q')?.toLocaleLowerCase('pt-BR') || '';
-      return result((issues || []).map((issue) => ({ ...issue, collection_count: counts.get(issue.id) || 0 })).filter((issue) => issue.title.toLocaleLowerCase('pt-BR').includes(q)));
+      return result((issues || []).map((issue) => ({ ...issue, collection_count: counts.get(issue.id) || 0 })).filter((issue) => issue.title.toLocaleLowerCase('pt-BR').includes(q) || String(issue.publication_year || '').includes(q)));
     }
     if (path === '/api/american' && method === 'POST') {
       if (!body.title?.trim()) throw new Error('Informe o título americano.');
       const { data: rows, error: loadError } = await supabaseClient.from('american_issues').select('sort_order'); if (loadError) throw loadError;
       const cover = await saveImage(body.cover, 'american');
-      const { error } = await supabaseClient.from('american_issues').insert({ title: body.title.trim(), cover, sort_order: Math.max(0, ...(rows || []).map((row) => Number(row.sort_order) || 0)) + 1 }); if (error) throw error;
+      const { error } = await supabaseClient.from('american_issues').insert({ title: body.title.trim(), publication_year: body.publication_year ?? null, cover, sort_order: Math.max(0, ...(rows || []).map((row) => Number(row.sort_order) || 0)) + 1 }); if (error) throw error;
       return result({ ok: true }, null, 201);
     }
     const issueMatch = path.match(/^\/api\/american\/(\d+)$/);
     if (issueMatch && method === 'PUT') {
       const id = Number(issueMatch[1]); const { data: old, error: oldError } = await supabaseClient.from('american_issues').select('*').eq('id', id).single(); if (oldError) throw oldError;
       const title = (body.title || old.title).trim(), cover = body.cover === undefined ? old.cover : await saveImage(body.cover, 'american');
-      const { error } = await supabaseClient.from('american_issues').update({ title, cover }).eq('id', id); if (error) throw error;
+      const { error } = await supabaseClient.from('american_issues').update({ title, publication_year: Object.hasOwn(body, 'publication_year') ? body.publication_year : old.publication_year, cover }).eq('id', id); if (error) throw error;
       if (title !== old.title) { const comics = await getComics(); for (const comic of comics.filter((item) => item.american_issues.includes(old.title))) { const american_issues = comic.american_issues.map((item) => item === old.title ? title : item); const { error: updateError } = await supabaseClient.from('comics').update({ american_issues }).eq('id', comic.id); if (updateError) throw updateError; await syncIssues(comic.id, american_issues); } }
       return result({ ok: true });
     }

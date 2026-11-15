@@ -48,7 +48,7 @@ export default function CoverSearchModal({ issue, onClose, onSaved }) {
       const saveResponse = await apiFetch(`/api/american/${issue.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: issue.title, cover: image.data }),
+        body: JSON.stringify({ title: issue.title, ...(candidate.cover_date ? { publication_year: candidate.cover_date.slice(0, 4) } : {}), cover: image.data }),
       });
       const saved = await saveResponse.json();
       if (!saveResponse.ok) throw new Error(saved.error || 'Não foi possível salvar a capa.');

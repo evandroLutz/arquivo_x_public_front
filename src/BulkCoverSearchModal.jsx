@@ -119,7 +119,7 @@ export default function BulkCoverSearchModal({ onClose, onSaved }) {
         const response = await apiFetch(`/api/american/${entry.issue.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: entry.issue.title, cover: image.data }),
+          body: JSON.stringify({ title: entry.issue.title, ...(candidate.cover_date ? { publication_year: candidate.cover_date.slice(0, 4) } : {}), cover: image.data }),
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || `Falha ao salvar a capa de ${entry.issue.title}.`);
