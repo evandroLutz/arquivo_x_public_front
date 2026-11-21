@@ -24,7 +24,7 @@
 /* Capas acompanham a largura real de cada coluna, para que o alvo de arraste
    coincida com o cartão em telas largas e estreitas. */
 .grid>.comic-card{min-width:0}
-.comic-card .cover-wrap{width:100%;height:auto;aspect-ratio:2/3}
+.comic-card .cover-wrap{width:100%;max-width:400px;height:auto;aspect-ratio:2/3}
 
 @media (max-width: 650px) {
     .cover-wrap {
