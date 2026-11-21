@@ -6,7 +6,24 @@ export const supabaseClient = url && publishableKey ? createClient(url, publisha
 export const supabaseConfigReady = Boolean(supabaseClient);
 
 const fields = 'id,title,saga,synopsis,completeness,american_issues,original_year,is_read,price,cover,art,sort_order';
-const normalizeComic = (row) => ({ ...row, is_read: Boolean(row.is_read), american_issues: Array.isArray(row.american_issues) ? row.american_issues : JSON.parse(row.american_issues || '[]') });
+const curiosityMarker = /\n?\n?<!--AXC:([\s\S]+?)-->$/;
+function decodeSynopsis(value) {
+  const synopsis = String(value || ''), match = synopsis.match(curiosityMarker);
+  if (!match) return { synopsis, curiosities: [] };
+  try {
+    const curiosities = JSON.parse(decodeURIComponent(match[1]));
+    return { synopsis: synopsis.slice(0, match.index).trimEnd(), curiosities: Array.isArray(curiosities) ? curiosities : [] };
+  } catch { return { synopsis, curiosities: [] }; }
+}
+function encodeSynopsis(value, curiosities) {
+  const synopsis = decodeSynopsis(value).synopsis;
+  const facts = Array.isArray(curiosities) ? curiosities.filter(item => item?.text && item?.source) : [];
+  return facts.length ? `${synopsis}\n\n<!--AXC:${encodeURIComponent(JSON.stringify(facts))}-->` : synopsis;
+}
+const normalizeComic = (row) => {
+  const { synopsis, curiosities } = decodeSynopsis(row.synopsis);
+  return { ...row, synopsis, curiosities, is_read: Boolean(row.is_read), american_issues: Array.isArray(row.american_issues) ? row.american_issues : JSON.parse(row.american_issues || '[]') };
+};
 const result = (data, error, status = error ? 400 : 200) => ({ ok: !error, status, json: async () => error ? { error: error.message || String(error) } : data });
 
 async function saveImage(data, prefix) {
@@ -82,7 +99,7 @@ export async function apiFetch(input, options = {}) {
       if (!body.title?.trim() || !Array.isArray(body.american_issues)) throw new Error('Título e lista de revistas são obrigatórios.');
       const rows = await getComics();
       const cover = await saveImage(body.cover, 'cover');
-      const { data, error } = await supabaseClient.from('comics').insert({ title: body.title.trim(), saga: body.saga || '', synopsis: body.synopsis || '', american_issues: body.american_issues, original_year: body.original_year || '', is_read: !!body.is_read, cover, sort_order: Math.max(0, ...rows.map((row) => Number(row.sort_order) || 0)) + 1 }).select(fields).single();
+      const { data, error } = await supabaseClient.from('comics').insert({ title: body.title.trim(), saga: body.saga || '', synopsis: encodeSynopsis(body.synopsis, body.curiosities), american_issues: body.american_issues, original_year: body.original_year || '', is_read: !!body.is_read, cover, sort_order: Math.max(0, ...rows.map((row) => Number(row.sort_order) || 0)) + 1 }).select(fields).single();
       if (error) throw error;
       await syncIssues(data.id, body.american_issues);
       return result({ ok: true, comic: normalizeComic(data) }, null, 201);
@@ -94,7 +111,7 @@ export async function apiFetch(input, options = {}) {
       const { data: old, error: oldError } = await supabaseClient.from('comics').select('cover').eq('id', id).single();
       if (oldError) throw oldError;
       const cover = body.cover === undefined ? old.cover : await saveImage(body.cover, 'cover');
-      const { data, error } = await supabaseClient.from('comics').update({ title: body.title.trim(), saga: body.saga || '', synopsis: body.synopsis || '', american_issues: body.american_issues, original_year: body.original_year || '', is_read: !!body.is_read, cover }).eq('id', id).select(fields).single();
+      const { data, error } = await supabaseClient.from('comics').update({ title: body.title.trim(), saga: body.saga || '', synopsis: encodeSynopsis(body.synopsis, body.curiosities), american_issues: body.american_issues, original_year: body.original_year || '', is_read: !!body.is_read, cover }).eq('id', id).select(fields).single();
       if (error) throw error;
       await syncIssues(id, body.american_issues);
       return result({ ok: true, comic: normalizeComic(data) });
